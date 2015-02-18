@@ -14,7 +14,7 @@ var mq = new Mq({
 });
 
 mq.connection.on('ready', function() {
-    var indexes = Array.apply(null, { length: 50 }).map(Number.call, Number);
+    var indexes = Array.apply(null, { length: 10 }).map(Number.call, Number);
 
     async.eachSeries(indexes, function (index, done) {
         mq.send('test-key', 'com.cinchcast.telephony.mq.exchange', { message: 'node test ' + index }, function (mqSendError) {
@@ -30,6 +30,8 @@ mq.connection.on('ready', function() {
         } else {
             console.info('done without errors');
         }
+
+        mq.close();
     });
 });
 

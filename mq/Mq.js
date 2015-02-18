@@ -7,10 +7,13 @@ module.exports = (function () {
     var Mq = function (config) {
         var self = this;
         this.connection = amqp.createConnection(config, {
+            reconnect: false
+            /*
             reconnect: true,
             reconnectBackoffStrategy: 'linear',
             reconnectExponentialLimit: 120000,
             reconnectBackoffTime: 1000
+             */
         });
         this.status = 'disconnected';
 
@@ -47,6 +50,14 @@ module.exports = (function () {
 
             exchange.publish(routingKey, message, { deliveryMode: 2 }, callback);
         });
+    };
+
+    Mq.prototype.close = function () {
+        if (this.connection != null) {
+            this.connection.disconnect();
+        }
+
+        this.connection = null;
     };
 
     return Mq;
