@@ -1,0 +1,10 @@
+{
+  "name": "node-mq-producer",
+  "version": "1.0.0",
+  "private": true,
+  "dependencies": {
+    "amqp": "*",
+    "underscore": "*",
+    "async": "*"
+  }
+}
