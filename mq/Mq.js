@@ -6,6 +6,7 @@ var consts = require('./MqConstants');
 module.exports = (function () {
     'use strict';
     var Mq = function (config) {
+        this.operationTimeout = 1000;
         this.config = config;
         this.status = consts.Status.Disconnected;
         this.connection = null;
@@ -47,15 +48,23 @@ module.exports = (function () {
 
     function getExchage(self, connection, exchangeName) {
         return new rsvp.Promise(function (resolve, reject) {
-            var exchange = connection.exchange(exchangeName, {
+            var resolved = false;
+
+            setTimeout(function() {
+                if (!resolved) {
+                    reject(new Error('Mq: Unable to access exchange'));
+                }
+            }, self.operationTimeout);
+
+            connection.exchange(exchangeName, {
                 type: 'topic',
                 durable: true,
                 autoDelete: false,
                 confirm: true
-            });
-            exchange.on('open', function () {
+            }, function (exchange) {
+                resolved = true;
                 resolve(exchange);
-            })
+            });
         });
     }
 
@@ -78,7 +87,7 @@ module.exports = (function () {
                     });
                 })
                 .catch(function(error){
-                    console.error('Failed to send message');
+                    console.error('Mq: Failed to send message: ' + error.toString());
                     reject(error);
                 });
         });
