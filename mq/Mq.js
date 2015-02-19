@@ -86,7 +86,7 @@ module.exports = (function () {
                                 console.error('Mq: Failed to send message: ' + error.toString());
                                 self.close();
                                 if (retriesLeft > 0) {
-                                    tryAtMost(retriesLeft - 1);
+                                    setTimeout(function(){ tryAtMost(retriesLeft - 1); } , self.retryInterval);
                                 } else {
                                     reject(sendError);
                                 }
@@ -99,7 +99,7 @@ module.exports = (function () {
                         console.error('Mq: Failed to send message: ' + error.toString());
                         self.close();
                         if (retriesLeft > 0) {
-                            tryAtMost(retriesLeft - 1);
+                            setTimeout(function(){ tryAtMost(retriesLeft - 1); } , self.retryInterval);
                         } else {
                             reject(error);
                         }
