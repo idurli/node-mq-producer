@@ -5,6 +5,7 @@
   "dependencies": {
     "amqp": "*",
     "underscore": "*",
-    "async": "*"
+    "async": "*",
+    "rsvp": "*"
   }
 }

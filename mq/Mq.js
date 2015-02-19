@@ -1,41 +1,52 @@
 /*globals require, module */
 var amqp = require('amqp');
+var rsvp = require('rsvp');
 var consts = require('./MqConstants');
 
 module.exports = (function () {
     'use strict';
     var Mq = function (config) {
-        var self = this;
-        this.connection = amqp.createConnection(config, {
-            reconnect: false
-            /*
-            reconnect: true,
-            reconnectBackoffStrategy: 'linear',
-            reconnectExponentialLimit: 120000,
-            reconnectBackoffTime: 1000
-             */
-        });
-        this.status = 'disconnected';
-
-        this.connection.on('connect', function () {
-            self.status = consts.Status.Connected;
-            console.info('mq.js: connection: connect');
-        });
-        this.connection.on('close', function () {
-            self.status = consts.Status.Disconnected;
-            console.warn('mq.js: connection: close');
-        });
-        this.connection.on('error', function (error) {
-            console.error('mq.js: connection: error: ' + error.toString());
-        });
-        this.connection.on('ready', function () {
-            self.status = consts.Status.Ready;
-            console.info('mq.js: connection: ready');
-        });
+        this.config = config;
+        this.status = consts.Status.Disconnected;
+        this.connection = null;
     };
 
-    function getExchage(self, exchangeName) {
-        return self.connection.exchange(exchangeName, {
+    function getConnection(self) {
+        return new rsvp.Promise(function (resolve, reject) {
+            if (self.connection) {
+                resolve(self.connection);
+            } else {
+                var connection = amqp.createConnection(self.config, {
+                    reconnect: false
+                });
+
+                connection.on('connect', function () {
+                    self.status = consts.Status.Connected;
+                    console.info('Mq: connection: connect');
+                });
+
+                connection.on('close', function () {
+                    self.status = consts.Status.Disconnected;
+                    console.warn('Mq: connection: close');
+                });
+
+                connection.on('error', function (error) {
+                    console.error('Mq: connection: error: ' + error.toString());
+                    reject(error);
+                });
+
+                connection.on('ready', function () {
+                    self.connection = connection;
+                    self.status = consts.Status.Ready;
+                    console.info('Mq: connection: ready');
+                    resolve(self.connection);
+                });
+            }
+        });
+    }
+
+    function getExchage(self, connection, exchangeName) {
+        return connection.exchange(exchangeName, {
             type: 'topic',
             durable: true,
             autoDelete: false,
@@ -44,12 +55,21 @@ module.exports = (function () {
     }
 
     Mq.prototype.send = function (routingKey, exchangeName, message, callback) {
-        var exchange = getExchage(this, exchangeName);
-        exchange.on('open', function () {
-            console.info('mq.js: Sending to \"' + exchangeName + '\" with key \"' + routingKey + '\" : ' + JSON.stringify(message));
+        var self = this;
+        getConnection(this)
+            .then(function(connection) {
+                var exchange = getExchage(self, connection, exchangeName);
+                exchange.on('open', function () {
+                    console.info('Mq: Sending to \"' + exchangeName + '\" with key \"' + routingKey + '\" : ' + JSON.stringify(message));
 
-            exchange.publish(routingKey, message, { deliveryMode: 2 }, callback);
-        });
+                    exchange.publish(routingKey, message, { deliveryMode: 2 }, callback);
+                });
+            })
+            .catch(function(connectionError){
+                console.error('Failed to create MQ connection');
+                //TODO: should this reject instead?
+                callback(new Error('Failed to create MQ connection: ' + connectionError.toString()));
+            });
     };
 
     Mq.prototype.close = function () {

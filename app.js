@@ -1,5 +1,4 @@
 var Mq = require('./mq/Mq');
-var u = require('underscore');
 var async = require('async');
 
 var mq = new Mq({
@@ -13,25 +12,25 @@ var mq = new Mq({
     "heartbeat" : 20
 });
 
-mq.connection.on('ready', function() {
-    var indexes = Array.apply(null, { length: 10 }).map(Number.call, Number);
 
-    async.eachSeries(indexes, function (index, done) {
-        mq.send('test-key', 'com.cinchcast.telephony.mq.exchange', { message: 'node test ' + index }, function (mqSendError) {
-            if (mqSendError) {
-                console.error('error sending mq msg: ' + mqSendError.toString());
-            }
+var indexes = Array.apply(null, { length: 10 }).map(Number.call, Number);
 
-            done();
-        });
-    }, function (eachSeriesError) {
-        if (eachSeriesError) {
-            console.error('done with errors: ' + eachSeriesError.toString());
-        } else {
-            console.info('done without errors');
+async.eachSeries(indexes, function (index, done) {
+    mq.send('test-key', 'com.cinchcast.telephony.mq.exchange', { message: 'node test ' + index }, function (mqSendError) {
+        if (mqSendError) {
+            console.error('error sending mq msg: ' + mqSendError.toString());
         }
 
-        mq.close();
+        done();
     });
+}, function (eachSeriesError) {
+    if (eachSeriesError) {
+        console.error('done with errors: ' + eachSeriesError.toString());
+    } else {
+        console.info('done without errors');
+    }
+
+    mq.close();
 });
+
 
