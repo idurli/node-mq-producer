@@ -7,6 +7,8 @@ module.exports = (function () {
     'use strict';
     var Mq = function (config) {
         this.operationTimeout = 1000;
+        this.maxRetries = 3;
+        this.retryInterval = 500;
         this.config = config;
         this.status = consts.Status.Disconnected;
         this.connection = null;
@@ -71,26 +73,41 @@ module.exports = (function () {
     Mq.prototype.send = function (routingKey, exchangeName, message) {
         var self = this;
         return new rsvp.Promise(function(resolve, reject){
-            getConnection(self)
-                .then(function(connection) {
-                    return getExchage(self, connection, exchangeName);
-                })
-                .then(function(exchange) {
-                    console.info('Mq: Sending to \"' + exchangeName + '\" with key \"' + routingKey + '\" : ' + JSON.stringify(message));
+            function tryAtMost(retriesLeft) {
+                getConnection(self)
+                    .then(function(connection) {
+                        return getExchage(self, connection, exchangeName);
+                    })
+                    .then(function(exchange) {
+                        console.info('Mq: Sending to \"' + exchangeName + '\" with key \"' + routingKey + '\" : ' + JSON.stringify(message));
 
-                    exchange.publish(routingKey, message, { deliveryMode: 2 }, function (sendError) {
-                        if (sendError) {
-                            reject(sendError);
+                        exchange.publish(routingKey, message, { deliveryMode: 2 }, function (sendError) {
+                            if (sendError) {
+                                console.error('Mq: Failed to send message: ' + error.toString());
+                                self.close();
+                                if (retriesLeft > 0) {
+                                    tryAtMost(retriesLeft - 1);
+                                } else {
+                                    reject(sendError);
+                                }
+                            } else {
+                                resolve();
+                            }
+                        });
+                    })
+                    .catch(function(error){
+                        console.error('Mq: Failed to send message: ' + error.toString());
+                        self.close();
+                        if (retriesLeft > 0) {
+                            tryAtMost(retriesLeft - 1);
                         } else {
-                            resolve();
+                            reject(error);
                         }
                     });
-                })
-                .catch(function(error){
-                    console.error('Mq: Failed to send message: ' + error.toString());
-                    reject(error);
-                });
-        });
+            } // tryAtMost
+
+            tryAtMost(self.maxRetries - 1);
+        }); //promise;
     };
 
     Mq.prototype.close = function () {
