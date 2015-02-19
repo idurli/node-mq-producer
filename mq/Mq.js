@@ -46,35 +46,51 @@ module.exports = (function () {
     }
 
     function getExchage(self, connection, exchangeName) {
-        return connection.exchange(exchangeName, {
-            type: 'topic',
-            durable: true,
-            autoDelete: false,
-            confirm: true
+        return new rsvp.Promise(function (resolve, reject) {
+            var exchange = connection.exchange(exchangeName, {
+                type: 'topic',
+                durable: true,
+                autoDelete: false,
+                confirm: true
+            });
+            exchange.on('open', function () {
+                resolve(exchange);
+            })
         });
     }
 
-    Mq.prototype.send = function (routingKey, exchangeName, message, callback) {
+    Mq.prototype.send = function (routingKey, exchangeName, message) {
         var self = this;
-        getConnection(this)
-            .then(function(connection) {
-                var exchange = getExchage(self, connection, exchangeName);
-                exchange.on('open', function () {
+        return new rsvp.Promise(function(resolve, reject){
+            getConnection(self)
+                .then(function(connection) {
+                    return getExchage(self, connection, exchangeName);
+                })
+                .then(function(exchange) {
                     console.info('Mq: Sending to \"' + exchangeName + '\" with key \"' + routingKey + '\" : ' + JSON.stringify(message));
 
-                    exchange.publish(routingKey, message, { deliveryMode: 2 }, callback);
+                    exchange.publish(routingKey, message, { deliveryMode: 2 }, function (sendError) {
+                        if (sendError) {
+                            reject(sendError);
+                        } else {
+                            resolve();
+                        }
+                    });
+                })
+                .catch(function(error){
+                    console.error('Failed to send message');
+                    reject(error);
                 });
-            })
-            .catch(function(connectionError){
-                console.error('Failed to create MQ connection');
-                //TODO: should this reject instead?
-                callback(new Error('Failed to create MQ connection: ' + connectionError.toString()));
-            });
+        });
     };
 
     Mq.prototype.close = function () {
-        if (this.connection != null) {
-            this.connection.disconnect();
+        try {
+            if (this.connection != null) {
+                this.connection.disconnect();
+            }
+        } catch (error) {
+            console.error('Mq: failed to disconnect Mq: ' + error.toString());
         }
 
         this.connection = null;

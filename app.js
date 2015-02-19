@@ -16,13 +16,14 @@ var mq = new Mq({
 var indexes = Array.apply(null, { length: 10 }).map(Number.call, Number);
 
 async.eachSeries(indexes, function (index, done) {
-    mq.send('test-key', 'com.cinchcast.telephony.mq.exchange', { message: 'node test ' + index }, function (mqSendError) {
-        if (mqSendError) {
-            console.error('error sending mq msg: ' + mqSendError.toString());
-        }
-
-        done();
-    });
+    mq.send('test-key', 'com.cinchcast.telephony.mq.exchange', { message: 'node test ' + index })
+        .then(function () {
+            done();
+        })
+        .catch(function(sendError) {
+            console.error('app: failed to send message: ' + sendError.toString());
+            done();
+        })
 }, function (eachSeriesError) {
     if (eachSeriesError) {
         console.error('done with errors: ' + eachSeriesError.toString());
